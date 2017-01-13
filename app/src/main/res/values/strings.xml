@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">wake_cat_up</string>
+    <string name="title_activity_take_phote">TakePhoteActivity</string>
+    <string name="title_activity_show_croppered">ShowCropperedActivity</string>
+</resources>
