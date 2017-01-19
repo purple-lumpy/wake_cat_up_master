@@ -34,6 +34,11 @@ import com.googlecode.tesseract.android.TessBaseAPI;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.GregorianCalendar;
+import java.util.Locale;
+import java.util.Random;
 
 
 public class MainActivity extends AppCompatActivity implements OnClickListener {
@@ -41,6 +46,7 @@ public class MainActivity extends AppCompatActivity implements OnClickListener {
     private static final String TAG = "Wake_the_Cat_Up__";
     private static Bitmap bitmap1;
     private static String cover_path;
+    private static String stego_path;
 
     /*------ google --- for recognize characters of image*/
     private static int RESULT_LOAD_IMAGE = 1;
@@ -59,6 +65,10 @@ public class MainActivity extends AppCompatActivity implements OnClickListener {
     private static final int RESULT_CUT_PHOTO = 666;    //截取
     private static final int RESULT_GET_PHOTO = 999;    //相册选择
     private static final int RESULT_GET_LOCATION = 778; //载体图片的路径
+    private static final int RESULT_GETEmbed_LOCATION = 777; //载体图片的路径
+    private static final String Value_Cover = "cover";
+    private static final String Value_Stego = "stego";
+
     private ImageView imageview;
     private Button button_chose;//从相册选图
     private Button button_recog;//识别
@@ -139,16 +149,26 @@ public class MainActivity extends AppCompatActivity implements OnClickListener {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-                pickPhotoRlocation();
+                pickPhotoRlocation(Value_Cover);
+                textView.setText(this.cover_path);
                 break;
             case R.id.click_embed:
+                //将字符串转换成0 1字符流
+                String truestr = editText.getText().toString();
+                StringEncode strEncode=new StringEncode();
+                String zeroNone=strEncode.Str2Bit(truestr);//------------需要将这个字符串存放到一个文件中
+                //------------------------------------------并把这个文件的地址赋给下面的字符串txtname1中就完成了。
+
+                String txtname1="/storage/emulated/0/OCRcandelete/Txtfile/s.txt";
+                String filename=this.cover_path;//picture file
+                String outfilename = StegoImgPath();//for Pad
+
                 JniTest jniTest=new JniTest();
-                int i=jniTest.NumberFromC();
+                int i=jniTest.NumberFromC(txtname1,filename,outfilename);
                 textView.setText(String.valueOf(i));
                 break;
             case R.id.click_extract:
-                JniTest jniTest2=new JniTest();
-                jniTest2.extractMsg();
+                pickPhotoRlocation(Value_Stego);
                 break;
         }
     }
@@ -187,23 +207,42 @@ public class MainActivity extends AppCompatActivity implements OnClickListener {
                 break;
             case RESULT_GET_LOCATION:
                 Uri originalUri = data.getData();        //获得图片的uri
-                //这里开始的第二部分，获取图片的路径：
-                String[] proj = {MediaStore.Images.Media.DATA};
+                TruePath truepath=new TruePath();
+                this.cover_path = truepath.getImageAbsolutePath(this,originalUri);
+                break;
+            case RESULT_GETEmbed_LOCATION:
+                Uri originalUri2 = data.getData();        //获得图片的uri
+                TruePath truepath2=new TruePath();
+                this.stego_path = truepath2.getImageAbsolutePath(this,originalUri2);
 
-                //好像是android多媒体数据库的封装接口，具体的看Android文档
-                //Cursor cursor = managedQuery(originalUri, proj, null, null, null);
-                Cursor cursor= this.getContentResolver().query(originalUri,proj,null,null,null);
-                //按我个人理解 这个是获得用户选择的图片的索引值
-                int column_index = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
-                //将光标移至开头 ，这个很重要，不小心很容易引起越界
-                cursor.moveToFirst();
-                //最后根据索引值获取图片路径
-                this.cover_path = cursor.getString(column_index);
+                String txtname2 = "/storage/emulated/0/ForH/Messages/extracts.txt"; //output the extracted msg
+                JniTest jniTest2=new JniTest();
+                String secretmsg = jniTest2.extractMsg(txtname2,this.stego_path);
 
+                //将0 1 字符流转换成真得字符串
+                StringEncode strEncode2 = new StringEncode();
+                String trueMsg=strEncode2.Bit2Str(secretmsg);
+                textView.setText(trueMsg);
+                break;
 
         }
     }
+    /**
+     * 生成载密图片的地址
+     */
+    private String StegoImgPath() {
+        String before=this.cover_path.substring(0,1+this.cover_path.lastIndexOf('/'));
 
+        Calendar now = new GregorianCalendar();
+        SimpleDateFormat simpleDate = new SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault());
+        String time = simpleDate.format(now.getTime());
+
+        Random random = new Random();
+        String ran = String.valueOf(random.nextInt(1000000));
+
+        String result=before+time+ran+".jpg";
+        return result;
+    }
     /**
      * 拍照
     */
@@ -221,12 +260,45 @@ public class MainActivity extends AppCompatActivity implements OnClickListener {
     /**
      * 寻找图片，返回图片的地址
      */
-    private void pickPhotoRlocation() {
+    private void pickPhotoRlocation(String value) {
 
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.setType("image/*");
-        startActivityForResult(intent, RESULT_GET_LOCATION);
+        if(value.equals(Value_Cover))
+            startActivityForResult(intent, RESULT_GET_LOCATION);
+        else
+            startActivityForResult(intent, RESULT_GETEmbed_LOCATION);
 
+    }
+
+    /**
+     * Try to return the absolute file path from the given Uri
+     *
+     * @param context
+     * @param uri
+     * @return the file path or null
+     */
+    public static String getRealFilePath( final Context context, final Uri uri ) {
+        if ( null == uri ) return null;
+        final String scheme = uri.getScheme();
+        String data = null;
+        if ( scheme == null )
+            data = uri.getPath();
+        else if ( ContentResolver.SCHEME_FILE.equals( scheme ) ) {
+            data = uri.getPath();
+        } else if ( ContentResolver.SCHEME_CONTENT.equals( scheme ) ) {
+            Cursor cursor = context.getContentResolver().query( uri, new String[] { MediaStore.Images.ImageColumns.DATA }, null, null, null );
+            if ( null != cursor ) {
+                if ( cursor.moveToFirst() ) {
+                    int index = cursor.getColumnIndex( MediaStore.Images.ImageColumns.DATA );
+                    if ( index > -1 ) {
+                        data = cursor.getString( index );
+                    }
+                }
+                cursor.close();
+            }
+        }
+        return data;
     }
 
     /**
@@ -271,6 +343,7 @@ public class MainActivity extends AppCompatActivity implements OnClickListener {
         intent.putExtra("noFaceDetection", true);
         startActivityForResult(intent, RESULT_CUT_PHOTO);
     }
+
 
     protected void ocr() {
         //Bitmap bitmap= BitmapFactory.decodeFile(IMAGE_PATH);
