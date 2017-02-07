@@ -159,7 +159,12 @@ public class MainActivity extends AppCompatActivity implements OnClickListener {
                 String zeroNone=strEncode.Str2Bit(truestr);//------------需要将这个字符串存放到一个文件中
                 //------------------------------------------并把这个文件的地址赋给下面的字符串txtname1中就完成了。
 
-                String txtname1="/storage/emulated/0/OCRcandelete/Txtfile/s.txt";
+                String appDir = this.getApplicationContext().getFilesDir().getAbsolutePath();
+                String xmlFileName = appDir + "/Msg.xml";
+                StringToXML.writeintoxml(xmlFileName,zeroNone);
+
+                String txtname1 = xmlFileName;
+//                String txtname1="/storage/emulated/0/OCRcandelete/Txtfile/s.txt";
                 String filename=this.cover_path;//picture file
                 String outfilename = StegoImgPath();//for Pad
 
